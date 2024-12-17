@@ -1,4 +1,10 @@
+# Load all required libraries
 library(readr)
+library(stringr)
+library(dplyr)
+library(purrr)
+library(tidytext)
+library(tidyr)
 
 spam <- read_tsv("Datasets/spam.tsv", col_names = c("label", "sms"))
 
@@ -75,39 +81,20 @@ n_vocabulary <- vocabulary %>% length()
 p_spam <- mean(tidy_train$label == "spam")
 p_ham <- mean(tidy_train$label == "ham")
 
-spam_counts <- tibble(
-  word = spam_vocab
-) %>% 
-  mutate(
-    spam_count = map_int(word, function(w) {
-      
-      map_int(spam_messages, function(sm) {
-        (str_split(sm, " ")[[1]] == w) %>% sum 
-      }) %>% 
-        sum 
-      
-    })
-  )
 
-ham_counts <- tibble(
-  word = ham_vocab
-) %>% 
-  mutate(
-    ham_count = map_int(word, function(w) {
-      
-      map_int(ham_messages, function(hm) {
-        (str_split(hm, " ")[[1]] == w) %>% sum 
-      }) %>% 
-        sum
-      
-    })
-  )
+spam_tokens <- tibble(text = spam_messages) %>%
+  unnest_tokens(word, text) %>%
+  count(word, name = "spam_count")
 
-word_counts <- full_join(spam_counts, ham_counts, by = "word") %>% 
-  mutate(
-    spam_count = ifelse(is.na(spam_count), 0, spam_count),
-    ham_count = ifelse(is.na(ham_count), 0, ham_count)
-  )
+# Convert ham messages into a tidy format
+ham_tokens <- tibble(text = ham_messages) %>%
+  unnest_tokens(word, text) %>%
+  count(word, name = "ham_count")
+
+word_counts <- full_join(spam_tokens, ham_tokens, by = "word") %>%
+  replace_na(list(spam_count = 0, ham_count = 0))
+
+print(word_counts)
 
 classify <- function(message, alpha = 1) {
   
